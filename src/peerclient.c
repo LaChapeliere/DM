@@ -19,8 +19,6 @@
 
 
 char * filename = NULL;
-char * ip = NULL;
-char * port = NULL;
 
 int nextPiece(struct bitfield * bf, uint32_t * id)
 {
@@ -100,28 +98,23 @@ int main(int argc, char** argv)
 {
   /* Parse parameters, such as port and list of beertorrent files */
     int c;
-    while ( ( c = getopt(argc,argv,"f:a:p:")) != -1) {
+    while ( ( c = getopt(argc,argv,"f:")) != -1) {
         switch (c) {
             case 'f':
                 filename = optarg;
                 break;
-            case 'a':
-                ip = optarg;
-                break;
-            case 'p':
-                port = optarg;
-                break;
             default:
-                fprintf(stderr, "Usage: -f <nom du fichier> -a <addresse> -p <port>\n" );
+                fprintf(stderr, "Usage: -f <nom du fichier>\n" );
                 exit(EXIT_FAILURE);
         }
     }
-    if(filename == NULL || ip == NULL || port ==NULL){
-        fprintf(stderr, "Usage: -f <nom du fichier> -a <addresse> -p <port>\n" );
+    if(filename == NULL){
+        fprintf(stderr, "Usage: -f <nom du fichier>\n" );
         exit(EXIT_FAILURE);
     }
 
   /* Generate client id and port */
+    
   
   /* For each beertorrent file, get the beerTorrent structure (tracker, hash ...) */
   
