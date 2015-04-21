@@ -1,7 +1,10 @@
 #include "peerfunc.h"
 
 /* BeerTorrent */
-struct beerTorrent * addtorrent(const char * filename);
+struct beerTorrent * addtorrent(const char * filename)
+{
+    printf("ADD TORRENT\n");
+}
 
 struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_t myPort);
 
