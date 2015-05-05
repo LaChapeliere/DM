@@ -132,6 +132,7 @@ void *activeThread(void * params)
 
 int main(int argc, char** argv)
 {
+    srand((unsigned int) time(0));
   /* Parse parameters, such as port and list of beertorrent files */
     int c;
     while ( ( c = getopt(argc,argv,"f:")) != -1) {
@@ -150,7 +151,9 @@ int main(int argc, char** argv)
     }
 
   /* Generate client id and port */
-    
+    u_short port = (u_short) rand() % 100 + 2000;
+    u_int id = (u_int) rand() % 100 + 1;
+    printf("My port is %d and my ID is %d.\n", port, id);
     
   
   /* For each beertorrent file, get the beerTorrent structure (tracker, hash ...) */
