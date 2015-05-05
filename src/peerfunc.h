@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <openssl/sha.h>
+#include "additionalFunctions.h"
 
 #define PORTTRACKER 3955
 #define MAXNAMELENGTH 128
