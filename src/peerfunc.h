@@ -4,6 +4,7 @@
 #include <openssl/sha.h>
 #include "additionalFunctions.h"
 
+//#define SHA_DIGEST_LENGTH 161
 #define PORTTRACKER 3955
 #define MAXNAMELENGTH 128
 
@@ -69,7 +70,7 @@ struct beerTorrent
   char filehash[SHA_DIGEST_LENGTH];
   char filename[MAXNAMELENGTH];
   uint32_t piecelength;
-  struct in_addr trackerip;
+  char * trackerip;
   FILE * fp;
   struct bitfield * bf;
 };

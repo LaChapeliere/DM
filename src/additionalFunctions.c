@@ -8,7 +8,7 @@
 
 #include "additionalFunctions.h"
 
-void sha_hexa_to_bin(char dest[], char src[])
+void sha_hexa_to_bin(char *dest, char *src)
 {
     long int i=0;
     

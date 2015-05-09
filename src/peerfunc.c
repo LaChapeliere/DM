@@ -22,13 +22,24 @@ struct beerTorrent * addtorrent(const char * filename)
     myTorrent->piecelength = atoi(line);
     //Tracker IP
     fgets(line, sizeof(line), file);
-    //A compléter
+    strcpy(myTorrent->trackerip, line);
     //Pointer to where the file will be reconstructed
     myTorrent->fp = (FILE*)malloc(sizeof(FILE));
     //Bitfield
-    //A compléter
+    myTorrent->bf = (struct bitfield*)malloc(sizeof(struct bitfield));
+    myTorrent->bf->nbpiece = ceil(myTorrent->filelength / myTorrent->piecelength);
+    myTorrent->bf->arraysize = myTorrent->bf->nbpiece * 20;
+    myTorrent->bf->array = (char*)malloc(sizeof(char) *myTorrent->bf->arraysize);
+    for (int n = 0; n < myTorrent->bf->nbpiece; n++)
+    {
+        fgets(line, sizeof(line), file);
+        char temp[20];
+        sha_hexa_to_bin(temp, line);
+        strcat(myTorrent->bf->array, temp);
+    }
     
     fclose(file);
+    return myTorrent;
 }
 
 struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_t myPort);
