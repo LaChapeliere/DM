@@ -1,8 +1,17 @@
 #include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netdb.h>
+#include <sys/socket.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <openssl/sha.h>
+#include <string.h>
+#include <math.h>
+#include <arpa/inet.h>
 #include "additionalFunctions.h"
+
+
 
 //#define SHA_DIGEST_LENGTH 161
 #define PORTTRACKER 3955
@@ -70,7 +79,7 @@ struct beerTorrent
   char filehash[SHA_DIGEST_LENGTH];
   char filename[MAXNAMELENGTH];
   uint32_t piecelength;
-  char * trackerip;
+  struct sockaddr_in trackerip;
   FILE * fp;
   struct bitfield * bf;
 };
