@@ -84,6 +84,18 @@ struct beerTorrent
   struct bitfield * bf;
 };
 
+/*Parameter struct for activeThread*/
+struct activeParam
+{
+    uint32_t myID;
+    u_short myport;
+    struct beerTorrent *myTorrent;
+    struct peer *myPeer;
+};
+
+struct activeParam * activeparam(uint32_t ID, u_short port, struct beerTorrent *torrent, struct peer *p);
+
+
 /* BeerTorrent */
 struct beerTorrent * addtorrent(const char * filename);
 

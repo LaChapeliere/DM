@@ -1,5 +1,19 @@
 #include "peerfunc.h"
 
+
+struct activeParam * activeparam(uint32_t ID, u_short port, struct beerTorrent *torrent, struct peer *p)
+{
+    struct activeParam *param = (struct activeParam*)malloc(sizeof(struct activeParam));
+    
+    param->myID = ID;
+    param->myport = port;
+    param->myTorrent = torrent;
+    param->myPeer = p;
+    
+    return param;
+}
+
+
 /* BeerTorrent */
 struct beerTorrent * addtorrent(const char * filename)
 {
@@ -84,7 +98,7 @@ struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_
     int err = writesock(sock, myRequest->fileHash, sizeof(myRequest->fileHash));
     err += writesock(sock, &(myRequest->peerId), sizeof(myRequest->peerId));
     err += writesock(sock, &(myRequest->port), sizeof(myRequest->port));
-    if (err < 0)
+    if (err != 0)
     {
         fprintf(stderr, "Cannot write to tracker!\n");
         exit(EXIT_FAILURE);
@@ -94,8 +108,14 @@ struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_
     printf("Waiting for peerlist from tracker.\n");
     
     struct trackerAnswer *answer = (struct trackerAnswer*)malloc(sizeof(struct trackerAnswer));
-    readsock(sock, answer->status, sizeof(answer->status));
-    readsock(sock, answer->nbPeers, sizeof(answer->nbPeers));
+    err = 0;
+    err += readsock(sock, answer->status, sizeof(answer->status));
+    err += readsock(sock, answer->nbPeers, sizeof(answer->nbPeers));
+    if (err != 0)
+    {
+        fprintf(stderr, "Cannot read from tracker!\n");
+        exit(EXIT_FAILURE);
+    }
     
     printf("Tracker: status %d, %d peers.\n", answer->status, answer->nbPeers);
     if (answer->status != 0)
