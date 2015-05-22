@@ -20,68 +20,76 @@
 /* Tracker communication structures */
 struct clientRequest
 {
-  char fileHash[SHA_DIGEST_LENGTH];
-  uint32_t peerId;
-  uint8_t port;
+    char fileHash[SHA_DIGEST_LENGTH];
+    uint32_t peerId;
+    uint8_t port;
 };
 
 struct trackerAnswer
 {
-  u_char status;
-  u_char nbPeers;
+    u_char status;
+    u_char nbPeers;
 };
 
 struct peer
 {
-  uint32_t peerId;
-  struct in_addr ipaddr;
-  uint8_t port;
+    uint32_t peerId;
+    struct in_addr ipaddr;
+    uint8_t port;
 };
 
 struct peerList
 {
-  u_char nbPeers;
-  struct peer * pentry;
+    u_char nbPeers;
+    struct peer * pentry;
 };
 
 /* Inter-client communication structures */
 struct handshake
 {
-  u_char version;
-  char filehash[SHA_DIGEST_LENGTH];
-  uint32_t peerId;
+    u_char version;
+    char filehash[SHA_DIGEST_LENGTH];
+    uint32_t peerId;
 };
 
 struct messageHeader
 {
-  uint32_t length;
-  u_char id;
+    uint32_t length;
+    u_char id;
 };
 
 struct requestPayload
 {
-  uint32_t index;
-  uint32_t offset;
-  uint32_t length;
+    uint32_t index;
+    uint32_t offset;
+    uint32_t length;
+};
+
+struct piece
+{
+    uint32_t index;
+    uint32_t offset;
+    char *data;
 };
 
 /* Beertorrent struct */
 struct bitfield
 {
-  u_char * array;
-  uint32_t arraysize;
-  uint32_t nbpiece;
+    u_char * array;
+    uint32_t arraysize;
+    uint32_t nbpiece;
 };
 
 struct beerTorrent
 {
-  uint32_t filelength;
-  char filehash[SHA_DIGEST_LENGTH];
-  char filename[MAXNAMELENGTH];
-  uint32_t piecelength;
-  struct sockaddr_in trackerip;
-  FILE * fp;
-  struct bitfield * bf;
+    uint32_t filelength;
+    char filehash[SHA_DIGEST_LENGTH];
+    char filename[MAXNAMELENGTH];
+    uint32_t piecelength;
+    struct sockaddr_in trackerip;
+    FILE * fp;
+    struct bitfield * bf_hash;
+    struct bitfield *bf;
 };
 
 /*Parameter struct for activeThread*/

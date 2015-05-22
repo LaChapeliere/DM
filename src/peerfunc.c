@@ -21,6 +21,10 @@ struct beerTorrent * addtorrent(const char * filename)
     
     //Opening the file to parse info
     FILE* file = fopen(filename, "r"); /* should check the result */
+    if (file == NULL) {
+        fprintf(stderr, "Cannot open .beertorrent!\n");
+        exit(EXIT_FAILURE);
+    }
     char line[256];
     //File size
     fgets(line, sizeof(line), file);
@@ -54,11 +58,11 @@ struct beerTorrent * addtorrent(const char * filename)
     memcpy (&(myTorrent->trackerip).sin_addr, temp_struct->h_addr_list[0], (size_t)temp_struct->h_length);
     //Pointer to where the file will be reconstructed
     myTorrent->fp = (FILE*)malloc(sizeof(FILE));
-    //Bitfield
-    myTorrent->bf = (struct bitfield*)malloc(sizeof(struct bitfield));
-    myTorrent->bf->nbpiece = ceil(myTorrent->filelength / myTorrent->piecelength);
-    myTorrent->bf->arraysize = myTorrent->bf->nbpiece * 20;
-    myTorrent->bf->array = (char*)malloc(sizeof(char) * myTorrent->bf->arraysize);
+    //Bitfield with the hash of the pieces
+    myTorrent->bf_hash = (struct bitfield*)malloc(sizeof(struct bitfield));
+    myTorrent->bf_hash->nbpiece = ceil(myTorrent->filelength / myTorrent->piecelength);
+    myTorrent->bf_hash->arraysize = myTorrent->bf->nbpiece * 20;
+    myTorrent->bf_hash->array = (char*)malloc(sizeof(char) * myTorrent->bf_hash->arraysize);
     for (uint32_t n = 0; n < myTorrent->bf->nbpiece; n++)
     {
         char temp[SHA_DIGEST_LENGTH];
@@ -67,10 +71,23 @@ struct beerTorrent * addtorrent(const char * filename)
             fscanf(file, "%2hhx", &temp[i]);
         }
         fscanf(file, "\n");
-        strcat(myTorrent->bf->array, temp);
+        strcat(myTorrent->bf_hash->array, temp);
     }
     
     fclose(file);
+    //Bitfield with the pieces possessed by client
+    myTorrent->bf = (struct bitfield*)malloc(sizeof(struct bitfield));
+    myTorrent->bf->nbpiece = ceil(myTorrent->filelength / myTorrent->piecelength);
+    myTorrent->bf->arraysize = myTorrent->bf->nbpiece / 8;
+    if (myTorrent->bf->nbpiece % 8 != 0)
+    {
+        myTorrent->bf->arraysize += 1;
+    }
+    myTorrent->bf->array = (char*)malloc(sizeof(char) * myTorrent->bf->arraysize);
+    for (int i = 0; i < myTorrent->bf->arraysize; i++)
+    {
+        myTorrent->bf->array[i] = 0;
+    }
     return myTorrent;
 }
 
@@ -156,9 +173,16 @@ void destroybitfield(struct bitfield * bf);
 
 void setbitfield(struct bitfield * dst, struct bitfield * src);
 
-void setbitinfield(struct bitfield * bf, uint32_t id);
+void setbitinfield(struct bitfield * bf, uint32_t id)
+{
+    bf->nbpiece += (u_int)!isinbitfield(bf,id) ;
+    bf->array[id/8] |= (u_char)(0x1 << (id%8));
+}
 
-int isinbitfield(struct bitfield * bf, uint32_t id);
+int isinbitfield(struct bitfield * bf, uint32_t id)
+{
+    return !!(bf->array[id/8] & (0x1 << (id%8)));
+}
 
 /* Sockets */
 int writesock(int fd, const char * buffer, int len)

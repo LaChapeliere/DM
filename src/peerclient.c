@@ -136,22 +136,52 @@ void Pthread_cancel(pthread_t thread) {
 
 
 
-int nextPiece(struct bitfield * bf, uint32_t * id)
+int nextPiece(struct bitfield * bf, struct beerTorrent *myTorrent, uint32_t * id)
 {
     /* Algorithm to select the next piece to download */
+    int ok = -1;
+    
+    for (uint32_t n = 0; n < myTorrent->bf->nbpiece; n++)
+    {
+        if (isinbitfield(bf, n) && !isinbitfield(myTorrent->bf, n))
+        {
+            ok = 0;
+            *id = n;
+            break;
+        }
+    }
     
     /* Return -1 in case no piece is available, 0 otherwise */
+    return ok;
 }
 
-void waitAndReply(/* ... */)
+void waitAndReply(int sock, struct beerTorrent *myTorrent)
 {
     /* Socket is already open */
     
     int connected = 1;
     
+    //Initialize peer bitfield to 0
+    struct bitfield *peer_bf = (struct bitfield*)malloc(sizeof(struct bitfield));
+    peer_bf->nbpiece = myTorrent->bf->nbpiece;
+    peer_bf->arraysize = myTorrent->bf->arraysize;
+    peer_bf->array = (char*)malloc(sizeof(char) * peer_bf->arraysize);
+    for (int i = 0; i < peer_bf->arraysize; i++)
+    {
+        peer_bf->array[i] = 0;
+    }
+    
+    
     while(connected == 1)
     {
         /* Read message (id and length) */
+        struct messageHeader *header = (struct messageHeader *)malloc(sizeof(struct messageHeader));
+        int err = readsock(sock, header->length, sizeof(header->length));
+        err += readsock(sock, header->id, sizeof(header->id));
+        if(err != 0){
+            fprintf(stderr, "Cannot read peer message.\n" );
+            exit(EXIT_FAILURE);
+        }
         
         /* What message is it ?
          - keep-alive: don't disconnect
@@ -159,6 +189,83 @@ void waitAndReply(/* ... */)
          - request: send blocks to the other clients
          - piece: add blocks to the file you are downloading !
          - cancel: cancel request */
+        if (header->id == 0)
+        {
+            //Keep-alive
+        }
+        else if (header->id == 1)
+        {
+            uint32_t piece_id;
+            char temp;
+            err = readsock(sock, &temp, sizeof(temp));
+            if(err != 0){
+                fprintf(stderr, "Cannot read peer message 'HAVE'.\n" );
+                exit(EXIT_FAILURE);
+            }
+            piece_id = atoi(temp);
+            //Update bitfield
+            setbitinfield(peer_bf, piece_id);
+        }
+        else if (header->id == 2)
+        {
+            err = readsock(sock, peer_bf->array, peer_bf->arraysize);
+            if(err != 0){
+                fprintf(stderr, "Cannot read peer message 'BITFIELD'.\n" );
+                exit(EXIT_FAILURE);
+            }
+            //Update bitfield
+            
+        }
+        else if (header->id == 3)
+        {
+            //Not needed in minimalist
+        }
+        else if (header->id == 4)
+        {
+            //Reading info about the piece
+            struct piece *myPiece = (struct piece *)malloc(sizeof(struct piece));
+            char temp;
+            err = readsock(sock, &temp, sizeof(temp));
+            if(err != 0){
+                fprintf(stderr, "Cannot read index in peer message 'PIECE'.\n" );
+                exit(EXIT_FAILURE);
+            }
+            myPiece->index = atoi(temp);
+            uint32_t piece_id;
+            temp;
+            err = readsock(sock, &temp, sizeof(temp));
+            if(err != 0){
+                fprintf(stderr, "Cannot read offset in peer message 'PIECE'.\n" );
+                exit(EXIT_FAILURE);
+            }
+            myPiece->offset = atoi(temp);
+            
+            //Reading data
+            myPiece->data = (char *)malloc(sizeof(char) * myTorrent->piecelength);
+            readsock(sock, myPiece->data, sizeof(myPiece->data));
+            
+            //Writing data to file
+            FILE* file = fopen(myTorrent->filename, "w"); /* should check the result */
+            if (file == NULL) {
+                fprintf(stderr, "Cannot open the file!\n");
+                exit(EXIT_FAILURE);
+            }
+            fseek(file, myPiece->offset, SEEK_SET);
+            fwrite(myPiece->data, sizeof(char), sizeof(myPiece->data), file);
+            fclose(file);
+            
+            //Updating the bitfield
+            setbitinfield(myTorrent->bf, myPiece->index);
+        }
+        else if (header->id == 5)
+        {
+            //Not needed in minimalist
+        }
+        else
+        {
+            fprintf(stderr, "Unrecognized peer message.\n" );
+            exit(EXIT_FAILURE);
+        }
         
         /* Note: if multiple activeThread have been created (to download from multiple clients simultaneously),
          you need a mutex to protect the bitfield and the file ! */
@@ -249,14 +356,9 @@ void *activeThread(void * params)
     
     free(sent);
     free(received);
-    
-    /* Initialize the bitfield of your beerTorrent file (all zero if you don't have any piece) */
-    
-    /* Send the bitfield message (first message sent to the other client)
-     Note: The other client should also send his bitfield, you will get it in the next function */
-    
+
     /* Then endless stream of request / answers in both directions (see: waitAndReply) */
-    
+    waitAndReply(sock, myParam->myTorrent);
     
     pthread_exit(NULL);
 }
