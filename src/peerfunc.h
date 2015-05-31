@@ -9,9 +9,9 @@
 #include <string.h>
 #include <math.h>
 #include <arpa/inet.h>
-#include "additionalFunctions.h"
-
-
+#include <errno.h>
+#include <unistd.h>
+#include <ctype.h>
 
 //#define SHA_DIGEST_LENGTH 161
 #define PORTTRACKER 3955
@@ -22,20 +22,20 @@ struct clientRequest
 {
     char fileHash[SHA_DIGEST_LENGTH];
     uint32_t peerId;
-    uint8_t port;
+    uint16_t port;
 };
 
 struct trackerAnswer
 {
-    u_char status;
-    u_char nbPeers;
+    uint8_t status;
+    uint8_t nbPeers;
 };
 
 struct peer
 {
     uint32_t peerId;
     struct in_addr ipaddr;
-    uint8_t port;
+    uint16_t port;
 };
 
 struct peerList
@@ -88,7 +88,7 @@ struct beerTorrent
     uint32_t piecelength;
     struct sockaddr_in trackerip;
     FILE * fp;
-    struct bitfield * bf_hash; //For bonus where you can start loading a file again after an interruption
+    //struct bitfield * bf_hash; //For bonus where you can start loading a file again after an interruption
     struct bitfield * bf;
 };
 
@@ -101,13 +101,13 @@ struct activeParam
     struct peer *myPeer;
 };
 
-struct activeParam * activeparam(uint32_t ID, u_short port, struct beerTorrent *torrent, struct peer *p);
+struct activeParam * activeparam(uint32_t ID, uint16_t port, struct beerTorrent *torrent, struct peer *p);
 
 
 /* BeerTorrent */
 struct beerTorrent * addtorrent(const char * filename);
 
-struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_t myPort);
+struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint16_t myPort);
 
 int hostname_to_ip(char *hostname , char *ip);
 
@@ -123,6 +123,9 @@ void setbitinfield(struct bitfield * bf, uint32_t id);
 int isinbitfield(struct bitfield * bf, uint32_t id);
 
 /* Sockets */
-int writesock(int fd, const char * buf, int len);
+size_t writen(int fd, void *ptr, size_t len);
+ssize_t readn(int fd, void *vptr, size_t n);
+
+int writesock(int fd, const void * buffer, int len);
 
 int readsock(int fd, char * buffer, int len);

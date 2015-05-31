@@ -1,7 +1,7 @@
 #include "peerfunc.h"
 
 
-struct activeParam * activeparam(uint32_t ID, u_short port, struct beerTorrent *torrent, struct peer *p)
+struct activeParam * activeparam(uint32_t ID, uint16_t port, struct beerTorrent *torrent, struct peer *p)
 {
     struct activeParam *param = (struct activeParam*)malloc(sizeof(struct activeParam));
     
@@ -27,30 +27,22 @@ struct beerTorrent * addtorrent(const char * filename)
     }
     char line[256];
     //File size
-    fgets(line, sizeof(line), file);
-    myTorrent->filelength = atoi(line);
+    fscanf(file, "%d\n", &myTorrent->filelength);
     //File hash
     for (unsigned int i = 0; i < SHA_DIGEST_LENGTH; i++)
     {
-        fscanf(file, "%2hhx", &(myTorrent->filehash[i]));
+        fscanf(file, "%2hhx", &myTorrent->filehash[i]);
     }
-    fscanf(file, "\n");
+    
     //File name
-    fgets(line, sizeof(line), file);
-    strcpy(myTorrent->filename, line);
+    fscanf(file, "%s\n", myTorrent->filename);
     //Piece length
-    fgets(line, sizeof(line), file);
-    myTorrent->piecelength = atoi(line);
+    fscanf(file, "%d\n", &myTorrent->piecelength);
     //Tracker IP (sockaddr_in)
+    memset(&(myTorrent->trackerip), 0, sizeof(myTorrent->trackerip));
     myTorrent->trackerip.sin_family = AF_INET;
     myTorrent->trackerip.sin_port = htons(PORTTRACKER);
-    struct in_addr * tracker = (struct in_addr *)malloc(sizeof(struct in_addr));
-    fgets(line, sizeof(line), file);
-    size_t s = strlen(line) - 1;
-    if (line[s] == '\n')
-    {
-        line[s] = '\0';
-    }
+    fscanf(file, "%s\n", line);
     char *ip = (char*)malloc(sizeof(char) * 256);
     if (isalpha(line[0]))
     {
@@ -64,8 +56,7 @@ struct beerTorrent * addtorrent(const char * filename)
     {
         fprintf(stderr, "Invalid tracker ip!\n");
     }
-    printf("%s\n", ip);
-    int er = inet_pton(AF_INET, ip, tracker);
+    int er = inet_aton(ip, &(myTorrent->trackerip.sin_addr));
     if (er != 1)
     {
         fprintf(stderr, "Could not convert IP to binary!\n");
@@ -73,32 +64,10 @@ struct beerTorrent * addtorrent(const char * filename)
         fprintf(stderr, "Input : %s\n", line);
         exit(EXIT_FAILURE);
     }
+    free(ip);
     
-    struct hostent *temp_struct;
-    temp_struct = gethostbyaddr(tracker, sizeof(*tracker), AF_INET);
-    if (temp_struct == NULL)
-    {
-        fprintf(stderr, "Error in gethostbyaddr!\n");
-        exit(EXIT_FAILURE);
-    }
-    memcpy (&(myTorrent->trackerip).sin_addr, temp_struct->h_addr_list[0], (size_t)temp_struct->h_length);
     //Pointer to where the file will be reconstructed
     myTorrent->fp = (FILE*)malloc(sizeof(FILE));
-    //Bitfield with the hash of the pieces
-    myTorrent->bf_hash = (struct bitfield*)malloc(sizeof(struct bitfield));
-    myTorrent->bf_hash->nbpiece = ceil(myTorrent->filelength / myTorrent->piecelength);
-    myTorrent->bf_hash->arraysize = myTorrent->bf->nbpiece * 20;
-    myTorrent->bf_hash->array = (char*)malloc(sizeof(char) * myTorrent->bf_hash->arraysize);
-    for (uint32_t n = 0; n < myTorrent->bf->nbpiece; n++)
-    {
-        char temp[SHA_DIGEST_LENGTH];
-        for (unsigned int i = 0; i < SHA_DIGEST_LENGTH; i++)
-        {
-            fscanf(file, "%2hhx", &temp[i]);
-        }
-        fscanf(file, "\n");
-        strcat(myTorrent->bf_hash->array, temp);
-    }
     
     fclose(file);
     //Bitfield with the pieces possessed by client
@@ -109,17 +78,17 @@ struct beerTorrent * addtorrent(const char * filename)
     {
         myTorrent->bf->arraysize += 1;
     }
-    myTorrent->bf->array = (char*)malloc(sizeof(char) * myTorrent->bf->arraysize);
-    for (int i = 0; i < myTorrent->bf->arraysize; i++)
+    myTorrent->bf->array = (u_char*)malloc(sizeof(u_char) * myTorrent->bf->arraysize);
+    for (int i = 0; i < (int)myTorrent->bf->arraysize; i++)
     {
         myTorrent->bf->array[i] = 0;
     }
     return myTorrent;
 }
 
-struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_t myPort)
+struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint16_t myPort)
 {
-    printf("Test gettrackerinfos");
+    printf("Test gettrackerinfos\n");
     //Connect to tracker
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1)
@@ -136,12 +105,18 @@ struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_
     }
     
     struct clientRequest *myRequest = (struct clientRequest*)malloc(sizeof(struct clientRequest));
-    memcpy(myRequest->fileHash, bt->filehash, sizeof(myRequest->fileHash));
-    myRequest->peerId = myId;
-    myRequest->port = myPort;
-    int err = writesock(sock, myRequest->fileHash, sizeof(myRequest->fileHash));
-    err += writesock(sock, &(myRequest->peerId), sizeof(myRequest->peerId));
-    err += writesock(sock, &(myRequest->port), sizeof(myRequest->port));
+    memcpy(myRequest->fileHash, bt->filehash, sizeof(bt->filehash));
+    myRequest->peerId = htonl(myId);
+    myRequest->port = htons(myPort);
+    int err = 0;
+    for (unsigned int i = 0; i < SHA_DIGEST_LENGTH; i++)
+    {
+        printf("%02hhx", myRequest->fileHash[i]);
+    }
+    printf("\n");
+    err += writesock(sock, (uint8_t *) &(myRequest->fileHash), sizeof(myRequest->fileHash));
+    err += writesock(sock, (uint8_t *) &(myRequest->peerId), sizeof(myRequest->peerId));
+    err += writesock(sock, (uint8_t *) &(myRequest->port), sizeof(myRequest->port));
     if (err != 0)
     {
         fprintf(stderr, "Cannot write to tracker!\n");
@@ -153,14 +128,13 @@ struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_
     
     struct trackerAnswer *answer = (struct trackerAnswer*)malloc(sizeof(struct trackerAnswer));
     err = 0;
-    err += readsock(sock, answer->status, sizeof(answer->status));
-    err += readsock(sock, answer->nbPeers, sizeof(answer->nbPeers));
-    if (err != 0)
+    err += readsock(sock, (char*)&(answer->status), sizeof(answer->status));
+    err += readsock(sock, (char*)&(answer->nbPeers), sizeof(answer->nbPeers));
+    if (err <= 0)
     {
         fprintf(stderr, "Cannot read from tracker!\n");
         exit(EXIT_FAILURE);
     }
-    
     printf("Tracker: status %d, %d peers.\n", answer->status, answer->nbPeers);
     if (answer->status != 0)
     {
@@ -177,19 +151,20 @@ struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_
         uint32_t peerId;
         uint32_t s_addr;
         uint16_t port;
-        u_char* tmp = (u_char*) malloc (100000);
-        readsock(sock, tmp, sizeof(peerId));
-        peerId = (uint32_t)atoi((char*)tmp);
-        readsock(sock, tmp, sizeof(s_addr));
-        s_addr = (uint32_t)atoi((char*)tmp);
-        readsock(sock, tmp, sizeof(port));
-        port = (uint32_t)atoi((char*)tmp);
+        
+        err = readsock(sock, (char*)&peerId, sizeof(peerId));
+        err += readsock(sock, (char*)&s_addr, sizeof(s_addr));
+        err += readsock(sock, (char*)&port, sizeof(port));
+        if (err <= 0)
+        {
+            fprintf(stderr, "Cannot read from tracker!\n");
+            exit(EXIT_FAILURE);
+        }
+        
         peerlist->pentry[i].peerId = ntohl(peerId);
         peerlist->pentry[i].ipaddr.s_addr = s_addr;
         peerlist->pentry[i].port = ntohs(port);
-        free(tmp);
     }
-    
     return peerlist;
 }
 
@@ -240,34 +215,55 @@ int isinbitfield(struct bitfield * bf, uint32_t id)
 }
 
 /* Sockets */
-int writesock(int fd, const char * buffer, int len)
+
+int writesock(int fd, const void * buffer, int len)
 {
     int data = 0;
     while (data != len)
     {
-        int r = write(fd, (uint8_t*)((u_char*)buffer+data), (len - data));
-        if (r == - 1)
+        int er = write(fd, (char*)buffer + data, (len - data));
+        if (er == -1)
         {
             fprintf(stderr, "Error in writesock(): cannot write to socket!\n");
             return -1;
         }
-        data += r;
+        data += er;
     }
     return 0;
 }
 
+ssize_t		/* Read "n" bytes from a descriptor. */
+readn(int fd, void *vptr, size_t n) //Fd: socket ID, vptr: pointer to buffer
+{
+    size_t	nleft;
+    ssize_t	nread;
+    char	*ptr;
+    
+    ptr = vptr;
+    nleft = n;
+    while (nleft > 0) {
+        if ( (nread = read(fd, ptr, nleft)) < 0) {
+            if (errno == EINTR)
+                nread = 0;		/* and call read() again */
+            else
+                return(-1);
+        } else if (nread == 0)
+            break;				/* EOF */
+        
+        nleft -= nread;
+        ptr += nread;
+    }
+    return(n - nleft);		/* return >= 0 */
+}
+
+
 int readsock(int fd, char * buffer, int len)
 {
-    int data = 0;
-    while (data != len)
+    ssize_t n;
+    
+    if ( (n = readn(fd, buffer, (size_t)len)) < 0)
     {
-        int r = read(fd, (u_char*)((u_char*)buffer+data), (len - data));
-        if (r == - 1)
-        {
-            fprintf(stderr, "Error in readsock(): cannot read from socket!\n");
-            return -1;
-        }
-        data += r;
+        fprintf(stderr, "Error in readsock(): cannot read from socket!\n");
     }
-    return 0;
+    return(n);
 }
