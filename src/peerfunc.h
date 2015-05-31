@@ -88,8 +88,8 @@ struct beerTorrent
     uint32_t piecelength;
     struct sockaddr_in trackerip;
     FILE * fp;
-    struct bitfield * bf_hash;
-    struct bitfield *bf;
+    struct bitfield * bf_hash; //For bonus where you can start loading a file again after an interruption
+    struct bitfield * bf;
 };
 
 /*Parameter struct for activeThread*/
@@ -108,6 +108,8 @@ struct activeParam * activeparam(uint32_t ID, u_short port, struct beerTorrent *
 struct beerTorrent * addtorrent(const char * filename);
 
 struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_t myPort);
+
+int hostname_to_ip(char *hostname , char *ip);
 
 /* Bitfield */
 struct bitfield * createbitfield(uint32_t filelength, uint32_t piecelength);

@@ -20,6 +20,7 @@
 
 
 char * filename = NULL;
+pthread_mutex_t *mutex;
 
 ssize_t		/* Read "n" bytes from a descriptor. */
 readn(int fd, void *vptr, size_t n) //Fd: socket ID, vptr: pointer to buffer
@@ -150,7 +151,6 @@ int nextPiece(struct bitfield * bf, struct beerTorrent *myTorrent, uint32_t * id
             break;
         }
     }
-    
     /* Return -1 in case no piece is available, 0 otherwise */
     return ok;
 }
@@ -166,7 +166,7 @@ void waitAndReply(int sock, struct beerTorrent *myTorrent)
     peer_bf->nbpiece = myTorrent->bf->nbpiece;
     peer_bf->arraysize = myTorrent->bf->arraysize;
     peer_bf->array = (char*)malloc(sizeof(char) * peer_bf->arraysize);
-    for (int i = 0; i < peer_bf->arraysize; i++)
+    for (int i = 0; i < (int)peer_bf->arraysize; i++)
     {
         peer_bf->array[i] = 0;
     }
@@ -213,12 +213,11 @@ void waitAndReply(int sock, struct beerTorrent *myTorrent)
                 fprintf(stderr, "Cannot read peer message 'BITFIELD'.\n" );
                 exit(EXIT_FAILURE);
             }
-            //Update bitfield
-            
         }
         else if (header->id == 3)
         {
             //Not needed in minimalist
+            fprintf(stderr, "Message 'REQUEST' not implemented.\n" );
         }
         else if (header->id == 4)
         {
@@ -232,7 +231,6 @@ void waitAndReply(int sock, struct beerTorrent *myTorrent)
             }
             myPiece->index = atoi(temp);
             uint32_t piece_id;
-            temp;
             err = readsock(sock, &temp, sizeof(temp));
             if(err != 0){
                 fprintf(stderr, "Cannot read offset in peer message 'PIECE'.\n" );
@@ -244,18 +242,24 @@ void waitAndReply(int sock, struct beerTorrent *myTorrent)
             myPiece->data = (char *)malloc(sizeof(char) * myTorrent->piecelength);
             readsock(sock, myPiece->data, sizeof(myPiece->data));
             
+            //Critical section
+            Pthread_mutex_lock(mutex);
+            
             //Writing data to file
             FILE* file = fopen(myTorrent->filename, "w"); /* should check the result */
             if (file == NULL) {
                 fprintf(stderr, "Cannot open the file!\n");
                 exit(EXIT_FAILURE);
             }
-            fseek(file, myPiece->offset, SEEK_SET);
+            fseek(file, myPiece->offset + myPiece->index * myTorrent->piecelength, SEEK_SET);
             fwrite(myPiece->data, sizeof(char), sizeof(myPiece->data), file);
             fclose(file);
             
             //Updating the bitfield
             setbitinfield(myTorrent->bf, myPiece->index);
+            
+            //End of critical section
+            Pthread_mutex_unlock(mutex);
         }
         else if (header->id == 5)
         {
@@ -273,6 +277,34 @@ void waitAndReply(int sock, struct beerTorrent *myTorrent)
         /* Then if needed, make a request to get some blocks / pieces
          Note 1: not needed if originated from passiveThread
          Note 2: use nextPiece to find the next piece you want to download */
+        Pthread_mutex_lock(mutex);
+        struct requestPayload *request = (struct requestPayload*)malloc(sizeof(struct requestPayload));
+        int full = nextPiece(peer_bf, myTorrent, &(request->index));
+        request->offset = 0;
+        request->length = myTorrent->piecelength;
+        if (full == -1)
+        {
+            //There is no piece left to load from this client
+            connected = 0;
+        }
+        else
+        {
+            struct messageHeader * header = (struct messageHeader*)malloc(sizeof(struct messageHeader));
+            header->length = 13;
+            header->id = '3';
+            int err = writesock(sock, &(header->length), sizeof(header->length));
+            err += writesock(sock, &(header->id), sizeof(header->id));
+            err += writesock(sock, &(request->index), sizeof(request->index));
+            err += writesock(sock, &(request->offset), sizeof(request->offset));
+            err += writesock(sock, &(request->length), sizeof(request->length));
+            if(err != 0){
+                fprintf(stderr, "Cannot write message 'REQUEST'.\n" );
+                exit(EXIT_FAILURE);
+            }
+            free(header);
+        }
+        free(request);
+        Pthread_mutex_unlock(mutex);
         
         /* loop */
     }
@@ -405,6 +437,7 @@ int main(int argc, char** argv)
     pthread_t act_thr[NUM_THREADS];
     int i, rc;
     /* create threads */
+    Pthread_mutex_init(mutex, NULL);
     for (i = 0; i < NUM_THREADS; ++i) {
         Pthread_create(&act_thr[i], NULL, activeThread, &(peerlist->pentry[i]));
     }
@@ -414,6 +447,7 @@ int main(int argc, char** argv)
         Pthread_join(act_thr[i], NULL);
     }
     
+    //NOT FOR MINIMALIST
     /* Open socket to listen and wait for new connexions from other clients */
     /*
     while (1)
@@ -424,6 +458,7 @@ int main(int argc, char** argv)
     }
     */
     
+    Pthread_mutex_destroy(mutex);
     
     return EXIT_SUCCESS;
 }

@@ -44,17 +44,43 @@ struct beerTorrent * addtorrent(const char * filename)
     //Tracker IP (sockaddr_in)
     myTorrent->trackerip.sin_family = AF_INET;
     myTorrent->trackerip.sin_port = htons(PORTTRACKER);
-    struct in_addr tracker;
+    struct in_addr * tracker = (struct in_addr *)malloc(sizeof(struct in_addr));
     fgets(line, sizeof(line), file);
     size_t s = strlen(line) - 1;
     if (line[s] == '\n')
     {
         line[s] = '\0';
     }
-    inet_pton(AF_INET, line, &tracker);
+    char *ip = (char*)malloc(sizeof(char) * 256);
+    if (isalpha(line[0]))
+    {
+        hostname_to_ip(line, ip);
+    }
+    else if (isdigit(line[0]))
+    {
+        strcpy(ip, line);
+    }
+    else
+    {
+        fprintf(stderr, "Invalid tracker ip!\n");
+    }
+    printf("%s\n", ip);
+    int er = inet_pton(AF_INET, ip, tracker);
+    if (er != 1)
+    {
+        fprintf(stderr, "Could not convert IP to binary!\n");
+        fprintf(stderr, "Error code : %d\n", er);
+        fprintf(stderr, "Input : %s\n", line);
+        exit(EXIT_FAILURE);
+    }
     
-    struct hostent *temp_struct = (struct hostent*)malloc(sizeof(struct hostent));
-    temp_struct = gethostbyaddr(&tracker, sizeof(tracker), AF_INET);
+    struct hostent *temp_struct;
+    temp_struct = gethostbyaddr(tracker, sizeof(*tracker), AF_INET);
+    if (temp_struct == NULL)
+    {
+        fprintf(stderr, "Error in gethostbyaddr!\n");
+        exit(EXIT_FAILURE);
+    }
     memcpy (&(myTorrent->trackerip).sin_addr, temp_struct->h_addr_list[0], (size_t)temp_struct->h_length);
     //Pointer to where the file will be reconstructed
     myTorrent->fp = (FILE*)malloc(sizeof(FILE));
@@ -93,6 +119,7 @@ struct beerTorrent * addtorrent(const char * filename)
 
 struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_t myPort)
 {
+    printf("Test gettrackerinfos");
     //Connect to tracker
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1)
@@ -164,6 +191,34 @@ struct peerList * gettrackerinfos(struct beerTorrent * bt, uint32_t myId, uint8_
     }
     
     return peerlist;
+}
+
+int hostname_to_ip(char *hostname , char *ip)
+{
+    int sockfd;
+    struct addrinfo hints, *servinfo, *p;
+    struct sockaddr_in *h;
+    int rv;
+    
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC; // use AF_INET6 to force IPv6
+    hints.ai_socktype = SOCK_STREAM;
+    
+    if ( (rv = getaddrinfo( hostname , "http" , &hints , &servinfo)) != 0)
+    {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        return 1;
+    }
+    
+    // loop through all the results and connect to the first we can
+    for(p = servinfo; p != NULL; p = p->ai_next)
+    {
+        h = (struct sockaddr_in *) p->ai_addr;
+        strcpy(ip , inet_ntoa( h->sin_addr ) );
+    }
+    
+    freeaddrinfo(servinfo); // all done with this structure
+    return 0;
 }
 
 /* Bitfield */
